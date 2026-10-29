@@ -1,0 +1,6 @@
+{
+  "name": "AC LABEL MAKER",
+  "description": "Upload SVG/PNG label templates, map Excel columns, insert dynamic text tokens, and render barcodes (EAN-13, Code 128) for high-resolution bulk label export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
