@@ -4,6 +4,11 @@ import { renderLabelToCanvas } from './renderer';
 import { getFirstRowValue } from './row';
 import { ProgressCallback } from './pdfExport';
 
+export interface ZipExportOptions {
+  scale?: number;
+  transparentBackground?: boolean;
+}
+
 function escapeCsvCell(value: string): string {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -15,8 +20,10 @@ export async function exportLabelsToZip(
   template: LabelTemplate,
   elements: CanvasElement[],
   rows: Record<string, string | number>[],
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  options: ZipExportOptions = {}
 ): Promise<void> {
+  const scale = options.scale ?? 2;
   const total = rows.length;
   if (total === 0) return;
 
@@ -28,8 +35,9 @@ export async function exportLabelsToZip(
     const row = rows[i];
     onProgress?.(i + 1, total, `Generating high-res PNG for item ${i + 1} of ${total}...`);
 
-    // Render at 2x resolution (crisp for printing)
-    const canvas = await renderLabelToCanvas(template, elements, row, i, 2);
+    const canvas = await renderLabelToCanvas(template, elements, row, i, scale, {
+      transparentBackground: options.transparentBackground,
+    });
 
     // Convert to blob
     const dataUrl = canvas.toDataURL('image/png');

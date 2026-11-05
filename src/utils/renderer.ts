@@ -98,6 +98,11 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+export interface CanvasRenderOptions {
+  /** Omit the template artwork and white fill, leaving a transparent canvas. */
+  transparentBackground?: boolean;
+}
+
 /**
  * Renders a single label into an offscreen HTMLCanvasElement
  */
@@ -106,7 +111,8 @@ export async function renderLabelToCanvas(
   elements: CanvasElement[],
   row: Record<string, string | number> | undefined,
   rowIndex: number = 0,
-  scale: number = 1
+  scale: number = 1,
+  options: CanvasRenderOptions = {}
 ): Promise<HTMLCanvasElement> {
   if (document.fonts?.ready) {
     try {
@@ -132,21 +138,23 @@ export async function renderLabelToCanvas(
   ctx.imageSmoothingQuality = 'high';
 
   // 1. Draw Background Template Image
-  if (template.backgroundUrl) {
-    try {
-      const bgImg = await loadImage(template.backgroundUrl);
-      ctx.drawImage(bgImg, 0, 0, width, height);
-    } catch {
-      // Fallback clean white canvas with subtle border if image fails
+  if (!options.transparentBackground) {
+    if (template.backgroundUrl) {
+      try {
+        const bgImg = await loadImage(template.backgroundUrl);
+        ctx.drawImage(bgImg, 0, 0, width, height);
+      } catch {
+        // Fallback clean white canvas with subtle border if image fails
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 2 * scale;
+        ctx.strokeRect(4 * scale, 4 * scale, width - 8 * scale, height - 8 * scale);
+      }
+    } else {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 2 * scale;
-      ctx.strokeRect(4 * scale, 4 * scale, width - 8 * scale, height - 8 * scale);
     }
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
   }
 
   // 2. Render Canvas Elements

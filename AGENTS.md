@@ -17,8 +17,8 @@ AC LABEL MAKER: a client-only React SPA for uploading label artwork, mapping spr
 
 - `src/App.tsx` owns all state and the tab flow: `template` -> `data` -> `designer` -> `bulk`. `BulkExportModal` is opened from the header and from the designer/bulk views.
 - `src/types/label.ts` is the schema source of truth. Element `x`/`y`/`width`/`height` are template pixels, not percentages.
-- `src/utils/renderer.ts` is the single rendering path for designer previews, batch previews, PDF, ZIP, and print. Change rendering behavior there, not in each component.
-- Exporters: `pdfExport.ts` (single-label pages or sheet grids), `zipExport.ts` (2x PNGs plus a `labels.csv` manifest). Barcodes use JsBarcode in `barcode.ts`; Excel parsing (first worksheet only, values stringified/trimmed) is in `excel.ts`.
+- `src/utils/renderer.ts` is the single raster rendering path for designer previews, batch previews, PDF, PNG ZIP, and print. `src/utils/svgExport.ts` is the vector equivalent (SVG text/barcode/QR, embedded artwork/images) and powers single-SVG and SVG ZIP export.
+- Exporters: `pdfExport.ts` (single-label pages or sheet grids), `zipExport.ts` (PNG ZIPs plus a `labels.csv` manifest), `svgExport.ts` (vector SVG ZIP). Barcodes use JsBarcode in `barcode.ts`; Excel parsing (first worksheet only, values stringified/trimmed) is in `excel.ts`.
 - `src/utils/row.ts` provides `normalizeColumnKey`, `getRowValue`, and `getFirstRowValue`; use these for case/space/underscore-tolerant column lookup.
 - `src/utils/template.ts` creates blank-label SVG data URLs. `TemplateUploader` supports upload, drag/drop, blank-label presets, and file validation.
 - There are no sample templates, sample badges, or sample spreadsheet rows in `src/`. The app starts empty and asks the user to upload artwork/data or create blanks.

@@ -6,15 +6,21 @@ export interface ProgressCallback {
   (current: number, total: number, message: string): void;
 }
 
+export interface PdfExportOptions {
+  scale?: number;
+}
+
 export async function exportLabelsToPdf(
   template: LabelTemplate,
   elements: CanvasElement[],
   rows: Record<string, string | number>[],
   settings: PrintSettings,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  options: PdfExportOptions = {}
 ): Promise<void> {
   const total = rows.length;
   if (total === 0) return;
+  const renderScale = Math.max(1, Math.min(4, options.scale ?? 2));
 
   if (settings.grid === 'single') {
     // 1 label per page, sized to label dimensions in mm
@@ -38,7 +44,7 @@ export async function exportLabelsToPdf(
       }
 
       // Render at 2x scale for 300 DPI crispness
-      const canvas = await renderLabelToCanvas(template, elements, rows[i], i, 2);
+      const canvas = await renderLabelToCanvas(template, elements, rows[i], i, renderScale);
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       pdf.addImage(imgData, 'JPEG', 0, 0, labelWidthMm, labelHeightMm, undefined, 'FAST');
     }
@@ -72,10 +78,10 @@ export async function exportLabelsToPdf(
       gridRows = 2;
     }
 
-    const marginX = settings.marginMm || 10;
-    const marginY = settings.marginMm || 10;
-    const gapX = settings.gapMm || 4;
-    const gapY = settings.gapMm || 4;
+    const marginX = settings.marginMm ?? 10;
+    const marginY = settings.marginMm ?? 10;
+    const gapX = settings.gapMm ?? 4;
+    const gapY = settings.gapMm ?? 4;
 
     const availableW = pageWidth - marginX * 2 - (cols - 1) * gapX;
     const availableH = pageHeight - marginY * 2 - (gridRows - 1) * gapY;
@@ -101,7 +107,7 @@ export async function exportLabelsToPdf(
 
       onProgress?.(i + 1, total, `Rendering label ${i + 1} onto sheet page ${pageIndex + 1}...`);
 
-      const canvas = await renderLabelToCanvas(template, elements, rows[i], i, 2);
+      const canvas = await renderLabelToCanvas(template, elements, rows[i], i, renderScale);
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
       // Fit aspect ratio inside cell

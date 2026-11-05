@@ -4,17 +4,45 @@ import {
   Printer,
   Download,
   FileArchive,
-  Layers,
   CheckCircle2,
-  FileText,
   Loader2,
-  Sliders,
-  ExternalLink,
+  FileCode2,
+  Sparkles,
+  EyeOff,
 } from 'lucide-react';
-import { CanvasElement, LabelTemplate, PrintSettings, SheetGridSize } from '../types/label';
+import { CanvasElement, LabelTemplate, PrintSettings } from '../types/label';
 import { exportLabelsToPdf } from '../utils/pdfExport';
 import { exportLabelsToZip } from '../utils/zipExport';
+import { downloadLabelSvg, exportLabelsToSvgZip } from '../utils/svgExport';
 import { renderLabelToCanvas } from '../utils/renderer';
+
+const GRID_OPTIONS: { value: PrintSettings['grid']; title: string; description: string }[] = [
+  {
+    value: 'single',
+    title: 'Individual Label Rolls',
+    description: '1 label per page at exact artwork ratio. Best for Zebra / thermal roll printers.',
+  },
+  {
+    value: '2x4',
+    title: 'Sheet (2 × 4)',
+    description: '8 labels per A4/Letter sheet. Standard industrial parts sticker layout.',
+  },
+  {
+    value: '3x7',
+    title: 'Sheet (3 × 7)',
+    description: '21 compact labels per page. Ideal for bin & inventory tags.',
+  },
+  {
+    value: '3x8',
+    title: 'Sheet (3 × 8)',
+    description: '24 ultra-compact labels per page for dense catalog sheets.',
+  },
+  {
+    value: '2x2',
+    title: 'Sheet (2 × 2)',
+    description: '4 large labels per page. Great for shipping and pallet labels.',
+  },
+];
 
 interface BulkExportModalProps {
   isOpen: boolean;
@@ -48,6 +76,8 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
     total: rows.length,
     message: '',
   });
+  const [rasterScale, setRasterScale] = useState<number>(2);
+  const [transparentBackground, setTransparentBackground] = useState<boolean>(false);
 
   const [renderedPreviews, setRenderedPreviews] = useState<string[]>([]);
   const [isGeneratingPreviews, setIsGeneratingPreviews] = useState<boolean>(false);
@@ -98,7 +128,8 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
         printSettings,
         (current, total, message) => {
           setExportProgress({ current, total, message });
-        }
+        },
+        { scale: rasterScale }
       );
     } catch (err) {
       alert(`Export failed: ${(err as Error).message}`);
@@ -111,9 +142,15 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
     if (rows.length === 0) return;
     setIsExporting(true);
     try {
-      await exportLabelsToZip(template, elements, rows, (current, total, message) => {
-        setExportProgress({ current, total, message });
-      });
+      await exportLabelsToZip(
+        template,
+        elements,
+        rows,
+        (current, total, message) => {
+          setExportProgress({ current, total, message });
+        },
+        { scale: rasterScale, transparentBackground }
+      );
     } catch (err) {
       alert(`Export failed: ${(err as Error).message}`);
     } finally {
@@ -121,21 +158,60 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
     }
   };
 
+  const handleExportSvgZip = async () => {
+    if (rows.length === 0) return;
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: rows.length, message: 'Preparing vector export...' });
+    try {
+      await exportLabelsToSvgZip(
+        template,
+        elements,
+        rows,
+        { transparentBackground },
+        (current, total, message) => {
+          setExportProgress({ current, total, message });
+        }
+      );
+    } catch (err) {
+      alert(`Vector export failed: ${(err as Error).message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const currentRow = rows[activeRowIndex] || rows[0] || {};
+  const activeRowLabel =
+    String(Object.values(currentRow).find((value) => String(value).trim()) || 'label')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 40) || 'label';
+
   const handleDownloadSinglePng = async () => {
     try {
-      const currentRow = rows[activeRowIndex] || rows[0] || {};
-      const canvas = await renderLabelToCanvas(template, elements, currentRow, activeRowIndex, 2);
+      const canvas = await renderLabelToCanvas(
+        template,
+        elements,
+        currentRow,
+        activeRowIndex,
+        rasterScale,
+        { transparentBackground }
+      );
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
-      const firstValue = Object.values(currentRow).find((value) => String(value).trim()) || 'label';
-      const safeName = String(firstValue).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'label';
       a.href = dataUrl;
-      a.download = `Label_${safeName}.png`;
+      a.download = `Label_${activeRowLabel}@${rasterScale}x.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     } catch (err) {
       alert(`Download failed: ${(err as Error).message}`);
+    }
+  };
+
+  const handleDownloadSingleSvg = async () => {
+    try {
+      await downloadLabelSvg(template, elements, currentRow, activeRowIndex, { transparentBackground });
+    } catch (err) {
+      alert(`Vector download failed: ${(err as Error).message}`);
     }
   };
 
@@ -198,7 +274,7 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
           total: rows.length,
           message: `Rendering label ${i + 1} for print...`,
         });
-        const canvas = await renderLabelToCanvas(template, elements, rows[i], i, 2);
+        const canvas = await renderLabelToCanvas(template, elements, rows[i], i, rasterScale);
         const img = printWin.document.createElement('img');
         img.src = canvas.toDataURL('image/png');
         img.className = 'label-img';
@@ -257,56 +333,178 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
             <span className="text-xs font-bold text-slate-400 tracking-wider uppercase block">
               1. Choose Page & Print Format
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div
-                onClick={() => setPrintSettings({ ...printSettings, grid: 'single' })}
-                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  printSettings.grid === 'single'
-                    ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-slate-900">Individual Label Rolls</span>
-                  {printSettings.grid === 'single' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {GRID_OPTIONS.map((option) => {
+                const isActive = printSettings.grid === option.value;
+                return (
+                  <div
+                    key={option.value}
+                    onClick={() =>
+                      setPrintSettings({
+                        ...printSettings,
+                        grid: option.value,
+                        paperSize: option.value === 'single' ? printSettings.paperSize : 'a4',
+                      })
+                    }
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      isActive
+                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <span className="text-xs font-bold text-slate-900">{option.title}</span>
+                      {isActive && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500">{option.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {printSettings.grid !== 'single' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-600">Paper size</span>
+                  <select
+                    value={printSettings.paperSize === 'letter' ? 'letter' : 'a4'}
+                    onChange={(event) =>
+                      setPrintSettings({
+                        ...printSettings,
+                        paperSize: event.target.value as PrintSettings['paperSize'],
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  >
+                    <option value="a4">A4 (210 × 297 mm)</option>
+                    <option value="letter">US Letter (8.5 × 11 in)</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-600">Page margin (mm)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={printSettings.marginMm}
+                    onChange={(event) =>
+                      setPrintSettings({
+                        ...printSettings,
+                        marginMm: Math.max(0, Math.min(30, Number(event.target.value) || 0)),
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-600">Label gap (mm)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={printSettings.gapMm}
+                    onChange={(event) =>
+                      setPrintSettings({
+                        ...printSettings,
+                        gapMm: Math.max(0, Math.min(20, Number(event.target.value) || 0)),
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Output quality + vector options */}
+          <div className="space-y-3">
+            <span className="text-xs font-bold text-slate-400 tracking-wider uppercase block">
+              2. Output Quality & Vector Export
+            </span>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="border border-slate-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-bold text-slate-900">Raster quality</span>
                 </div>
+
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4].map((scale) => (
+                    <button
+                      key={scale}
+                      onClick={() => setRasterScale(scale)}
+                      className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                        rasterScale === scale
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {scale}×
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setTransparentBackground((value) => !value)}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                    transparentBackground
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <EyeOff className="w-3.5 h-3.5" />
+                    Transparent background
+                  </span>
+                  <span
+                    className={`w-8 h-4 rounded-full p-0.5 transition-colors ${
+                      transparentBackground ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`block w-3 h-3 bg-white rounded-full transition-transform ${
+                        transparentBackground ? 'translate-x-4' : ''
+                      }`}
+                    />
+                  </span>
+                </button>
                 <p className="text-[11px] text-slate-500">
-                  1 label per page, exact artwork aspect ratio. Best for Zebra / thermal roll printers.
+                  Transparent mode omits the template artwork so only your placed fields are exported.
                 </p>
               </div>
 
-              <div
-                onClick={() => setPrintSettings({ ...printSettings, grid: '2x4', paperSize: 'a4' })}
-                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  printSettings.grid === '2x4'
-                    ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-slate-900">A4 Sheet (2 × 4 Grid)</span>
-                  {printSettings.grid === '2x4' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileCode2 className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-slate-900">Vector SVG export</span>
+                  <span className="ml-auto px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-600 text-white rounded">
+                    Crisp
+                  </span>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  8 labels per A4 sheet. Standard industrial parts sticker layout.
+                <p className="text-[11px] text-slate-600">
+                  Text, barcodes, and QR codes stay sharp at any size. Perfect for print shops and
+                  laser engravers.
                 </p>
-              </div>
-
-              <div
-                onClick={() => setPrintSettings({ ...printSettings, grid: '3x7', paperSize: 'a4' })}
-                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  printSettings.grid === '3x7'
-                    ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-slate-900">A4 Sheet (3 × 7 Grid)</span>
-                  {printSettings.grid === '3x7' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={handleDownloadSingleSvg}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-white border border-emerald-300 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <FileCode2 className="w-3.5 h-3.5" />
+                    Active Label SVG
+                  </button>
+                  <button
+                    onClick={handleExportSvgZip}
+                    disabled={isExporting || rows.length === 0}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <FileArchive className="w-3.5 h-3.5" />
+                    All SVG (.zip)
+                  </button>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  21 compact labels per A4 page. Ideal for bin & inventory tags.
-                </p>
               </div>
             </div>
           </div>
@@ -315,7 +513,7 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-400 tracking-wider uppercase block">
-                2. Live Batch Verification ({rows.length} Labels)
+                3. Live Batch Verification ({rows.length} Labels)
               </span>
               {isGeneratingPreviews && (
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -397,7 +595,14 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
               onClick={handleDownloadSinglePng}
               className="text-blue-600 hover:text-blue-800 font-medium underline cursor-pointer"
             >
-              Download active label PNG only
+              Download active PNG ({rasterScale}×)
+            </button>
+            <span>·</span>
+            <button
+              onClick={handleDownloadSingleSvg}
+              className="text-emerald-600 hover:text-emerald-800 font-medium underline cursor-pointer"
+            >
+              Active SVG
             </button>
           </div>
 
