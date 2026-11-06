@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ColorInput } from './ColorInput';
 import {
   Type,
   Barcode as BarcodeIcon,
@@ -781,30 +782,16 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Text Color
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={(selectedElement as TextElementConfig).color}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          color: e.target.value,
-                        } as TextElementConfig)
-                      }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={(selectedElement as TextElementConfig).color}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          color: e.target.value,
-                        } as TextElementConfig)
-                      }
-                      className="w-full text-xs font-mono uppercase bg-white border border-slate-200 rounded px-2 py-1"
-                    />
-                  </div>
+                  <ColorInput
+                    value={(selectedElement as TextElementConfig).color}
+                    title="Text color"
+                    onChange={(color) =>
+                      onUpdateElement({
+                        ...selectedElement,
+                        color,
+                      } as TextElementConfig)
+                    }
+                  />
                 </div>
 
                 <div>
@@ -947,34 +934,36 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Text Outline
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
+                  <div className="space-y-1.5">
+                    <ColorInput
                       value={(selectedElement as TextElementConfig).strokeColor || '#0f172a'}
-                      onChange={(e) =>
+                      title="Text outline color"
+                      onChange={(strokeColor) =>
                         onUpdateElement({
                           ...selectedElement,
-                          strokeColor: e.target.value,
+                          strokeColor,
                           strokeWidth:
                             (selectedElement as TextElementConfig).strokeWidth ?? 1,
                         } as TextElementConfig)
                       }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
                     />
-                    <input
-                      type="number"
-                      min="0"
-                      max="8"
-                      step="0.5"
-                      value={(selectedElement as TextElementConfig).strokeWidth ?? 0}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          strokeWidth: Number(e.target.value),
-                        } as TextElementConfig)
-                      }
-                      className="w-full text-xs bg-white border border-slate-200 rounded px-2 py-1 font-mono"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-500">Width</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="8"
+                        step="0.5"
+                        value={(selectedElement as TextElementConfig).strokeWidth ?? 0}
+                        onChange={(e) =>
+                          onUpdateElement({
+                            ...selectedElement,
+                            strokeWidth: Number(e.target.value),
+                          } as TextElementConfig)
+                        }
+                        className="w-full text-xs bg-white border border-slate-200 rounded px-2 py-1 font-mono"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -982,22 +971,20 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Background Fill
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
+                  <div className="space-y-1.5">
+                    <ColorInput
                       value={
-                        (selectedElement as TextElementConfig).backgroundColor &&
-                        (selectedElement as TextElementConfig).backgroundColor !== 'transparent'
-                          ? (selectedElement as TextElementConfig).backgroundColor
-                          : '#ffffff'
+                        (selectedElement as TextElementConfig).backgroundColor === 'transparent'
+                          ? '#ffffff'
+                          : (selectedElement as TextElementConfig).backgroundColor || '#ffffff'
                       }
-                      onChange={(e) =>
+                      title="Text background color"
+                      onChange={(backgroundColor) =>
                         onUpdateElement({
                           ...selectedElement,
-                          backgroundColor: e.target.value,
+                          backgroundColor,
                         } as TextElementConfig)
                       }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
                     />
                     <button
                       type="button"
@@ -1007,7 +994,7 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                           backgroundColor: 'transparent',
                         } as TextElementConfig)
                       }
-                      className="flex-1 px-2 py-1 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                     >
                       Clear
                     </button>
@@ -1178,40 +1165,33 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Bar Color
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
-                      value={(selectedElement as BarcodeElementConfig).lineColor || '#000000'}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          lineColor: e.target.value,
-                        } as BarcodeElementConfig)
-                      }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-mono text-slate-500 truncate">
-                      {(selectedElement as BarcodeElementConfig).lineColor || '#000000'}
-                    </span>
-                  </div>
+                  <ColorInput
+                    value={(selectedElement as BarcodeElementConfig).lineColor || '#000000'}
+                    title="Barcode bar color"
+                    onChange={(lineColor) =>
+                      onUpdateElement({
+                        ...selectedElement,
+                        lineColor,
+                      } as BarcodeElementConfig)
+                    }
+                  />
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Barcode Background
                   </label>
-                  <input
-                    type="color"
+                  <ColorInput
                     value={
                       (selectedElement as BarcodeElementConfig).backgroundColor || '#ffffff'
                     }
-                    onChange={(e) =>
+                    title="Barcode background color"
+                    onChange={(backgroundColor) =>
                       onUpdateElement({
                         ...selectedElement,
-                        backgroundColor: e.target.value,
+                        backgroundColor,
                       } as BarcodeElementConfig)
                     }
-                    className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
                   />
                 </div>
               </div>
@@ -1265,38 +1245,31 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     QR Color
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
-                      value={(selectedElement as QRElementConfig).color || '#0f172a'}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          color: e.target.value,
-                        } as QRElementConfig)
-                      }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-mono text-slate-500 truncate">
-                      {(selectedElement as QRElementConfig).color || '#0f172a'}
-                    </span>
-                  </div>
+                  <ColorInput
+                    value={(selectedElement as QRElementConfig).color || '#0f172a'}
+                    title="QR color"
+                    onChange={(color) =>
+                      onUpdateElement({
+                        ...selectedElement,
+                        color,
+                      } as QRElementConfig)
+                    }
+                  />
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     QR Background
                   </label>
-                  <input
-                    type="color"
+                  <ColorInput
                     value={(selectedElement as QRElementConfig).backgroundColor || '#ffffff'}
-                    onChange={(e) =>
+                    title="QR background color"
+                    onChange={(backgroundColor) =>
                       onUpdateElement({
                         ...selectedElement,
-                        backgroundColor: e.target.value,
+                        backgroundColor,
                       } as QRElementConfig)
                     }
-                    className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
                   />
                 </div>
               </div>
@@ -1389,44 +1362,32 @@ export const ElementInspector: React.FC<ElementInspectorProps> = ({
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Fill Color
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
-                      value={(selectedElement as ShapeElementConfig).fillColor}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          fillColor: e.target.value,
-                        } as ShapeElementConfig)
-                      }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-mono text-slate-500 truncate">
-                      {(selectedElement as ShapeElementConfig).fillColor}
-                    </span>
-                  </div>
+                  <ColorInput
+                    value={(selectedElement as ShapeElementConfig).fillColor}
+                    title="Shape fill color"
+                    onChange={(fillColor) =>
+                      onUpdateElement({
+                        ...selectedElement,
+                        fillColor,
+                      } as ShapeElementConfig)
+                    }
+                  />
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">
                     Stroke Color
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="color"
-                      value={(selectedElement as ShapeElementConfig).strokeColor}
-                      onChange={(e) =>
-                        onUpdateElement({
-                          ...selectedElement,
-                          strokeColor: e.target.value,
-                        } as ShapeElementConfig)
-                      }
-                      className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
-                    />
-                    <span className="text-[10px] font-mono text-slate-500 truncate">
-                      {(selectedElement as ShapeElementConfig).strokeColor}
-                    </span>
-                  </div>
+                  <ColorInput
+                    value={(selectedElement as ShapeElementConfig).strokeColor}
+                    title="Shape stroke color"
+                    onChange={(strokeColor) =>
+                      onUpdateElement({
+                        ...selectedElement,
+                        strokeColor,
+                      } as ShapeElementConfig)
+                    }
+                  />
                 </div>
               </div>
 

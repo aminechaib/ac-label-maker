@@ -19,7 +19,17 @@ import {
   ShapeType,
 } from './types/label';
 import { renderLabelToCanvas } from './utils/renderer';
-import { Download, Eye, LayoutTemplate, Database, Printer } from 'lucide-react';
+import { downloadTemplateFile, parseTemplateFile } from './utils/templateFile';
+import {
+  Download,
+  Eye,
+  LayoutTemplate,
+  Database,
+  Printer,
+  CheckCircle2,
+  AlertTriangle,
+  X,
+} from 'lucide-react';
 
 export default function App() {
   const [currentTemplate, setCurrentTemplate] = useState<LabelTemplate | null>(null);
@@ -29,11 +39,50 @@ export default function App() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'template' | 'data' | 'designer' | 'bulk'>('template');
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null
+  );
 
   const handleSelectTemplate = (template: LabelTemplate) => {
     setCurrentTemplate(template);
     setElements(template.elements);
     setSelectedElementId(template.elements[0]?.id || null);
+  };
+
+  const handleSaveTemplate = () => {
+    if (!currentTemplate) return;
+
+    try {
+      const fileName = downloadTemplateFile({
+        ...currentTemplate,
+        elements,
+        aspectRatio: currentTemplate.originalWidth / currentTemplate.originalHeight,
+      });
+      setNotice({ type: 'success', message: `Template saved as ${fileName}` });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not save the template file.',
+      });
+    }
+  };
+
+  const handleLoadTemplate = async (file: File) => {
+    try {
+      const loadedTemplate = parseTemplateFile(await file.text());
+      setCurrentTemplate(loadedTemplate);
+      setElements(loadedTemplate.elements);
+      setSelectedElementId(loadedTemplate.elements[0]?.id || null);
+      setActiveTab('designer');
+      setNotice({ type: 'success', message: `Loaded template "${loadedTemplate.name}"` });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not load the template file.',
+      });
+    }
   };
 
   const handleUploadCustomImage = (file: File) => {
@@ -311,9 +360,35 @@ export default function App() {
         rowCount={dataset?.totalRows ?? 0}
         templateName={currentTemplate?.name ?? ''}
         onOpenExport={() => setIsExportModalOpen(true)}
+        onSaveTemplate={handleSaveTemplate}
+        onLoadTemplate={handleLoadTemplate}
         hasTemplate={Boolean(currentTemplate)}
         hasData={hasData}
       />
+
+      {notice && (
+        <div
+          className={`fixed bottom-5 right-5 z-[100] flex items-start gap-2.5 max-w-sm px-4 py-3 text-xs font-medium rounded-xl border shadow-lg ${
+            notice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-red-50 text-red-800 border-red-200'
+          }`}
+        >
+          {notice.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-px" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+          )}
+          <span className="flex-1">{notice.message}</span>
+          <button
+            onClick={() => setNotice(null)}
+            title="Dismiss"
+            className="p-0.5 -mr-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col overflow-hidden">
         {activeTab === 'template' && (

@@ -20,6 +20,7 @@ AC LABEL MAKER: a client-only React SPA for uploading label artwork, mapping spr
 - Stacking order is the `elements` array order: later elements render on top. `ElementInspector` provides a drag-reorder Layers panel, plus visibility/lock toggles and front/back controls wired through `App`'s `handleMoveElement`.
 - `src/utils/renderer.ts` is the single raster rendering path for designer previews, batch previews, PDF, PNG ZIP, and print. `src/utils/svgExport.ts` is the vector equivalent (SVG text/barcode/QR/shapes, embedded artwork/images) and powers single-SVG and SVG ZIP export.
 - Exporters: `pdfExport.ts` (single-label pages or sheet grids), `zipExport.ts` (PNG ZIPs plus a `labels.csv` manifest), `svgExport.ts` (vector SVG ZIP). Barcodes use JsBarcode in `barcode.ts`; Excel parsing (first worksheet only, values stringified/trimmed) is in `excel.ts`.
+- `templateFile.ts` saves/loads editable templates as `.label-template.json` (background artwork plus elements) through the Header buttons. `ColorInput.tsx` is the shared hex + eyedropper color field used by every color control in the inspector.
 - `src/utils/row.ts` provides `normalizeColumnKey`, `getRowValue`, and `getFirstRowValue`; use these for case/space/underscore-tolerant column lookup.
 - `src/utils/template.ts` creates blank-label SVG data URLs. `TemplateUploader` supports upload, drag/drop, blank-label presets, and file validation.
 - There are no sample templates, sample badges, or sample spreadsheet rows in `src/`. The app starts empty and asks the user to upload artwork/data or create blanks.

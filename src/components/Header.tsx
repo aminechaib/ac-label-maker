@@ -1,5 +1,13 @@
-import React from 'react';
-import { Printer, FileSpreadsheet, Image as ImageIcon, Sparkles, Download } from 'lucide-react';
+import React, { useRef } from 'react';
+import {
+  Printer,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Sparkles,
+  Download,
+  Save,
+  FolderOpen,
+} from 'lucide-react';
 
 interface HeaderProps {
   activeTab: 'template' | 'data' | 'designer' | 'bulk';
@@ -7,6 +15,8 @@ interface HeaderProps {
   rowCount: number;
   templateName: string;
   onOpenExport: () => void;
+  onSaveTemplate: () => void;
+  onLoadTemplate: (file: File) => void;
   hasTemplate: boolean;
   hasData: boolean;
 }
@@ -17,9 +27,13 @@ export const Header: React.FC<HeaderProps> = ({
   rowCount,
   templateName,
   onOpenExport,
+  onSaveTemplate,
+  onLoadTemplate,
   hasTemplate,
   hasData,
 }) => {
+  const templateFileRef = useRef<HTMLInputElement>(null);
+
   return (
     <header className="flex items-center justify-between gap-8 px-6 py-3.5 bg-white border-b border-slate-200 sticky top-0 z-40">
       {/* Zone 1: Logo + Title */}
@@ -97,8 +111,39 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </nav>
 
-      {/* Zone 3: Primary Action */}
-      <div className="flex items-center gap-3 shrink-0">
+      {/* Zone 3: Primary Actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        <input
+          ref={templateFileRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onLoadTemplate(file);
+            event.target.value = '';
+          }}
+        />
+
+        <button
+          onClick={() => templateFileRef.current?.click()}
+          title="Load a saved template (.json)"
+          className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+        >
+          <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden xl:inline">Load</span>
+        </button>
+
+        <button
+          onClick={onSaveTemplate}
+          disabled={!hasTemplate}
+          title={hasTemplate ? 'Save this template as a .json file' : 'Create a template first'}
+          className="flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Save className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden xl:inline">Save Template</span>
+        </button>
+
         <button
           onClick={onOpenExport}
           disabled={!hasTemplate}
