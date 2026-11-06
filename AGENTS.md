@@ -16,8 +16,9 @@ AC LABEL MAKER: a client-only React SPA for uploading label artwork, mapping spr
 ## Architecture
 
 - `src/App.tsx` owns all state and the tab flow: `template` -> `data` -> `designer` -> `bulk`. `BulkExportModal` is opened from the header and from the designer/bulk views.
-- `src/types/label.ts` is the schema source of truth. Element `x`/`y`/`width`/`height` are template pixels, not percentages.
-- `src/utils/renderer.ts` is the single raster rendering path for designer previews, batch previews, PDF, PNG ZIP, and print. `src/utils/svgExport.ts` is the vector equivalent (SVG text/barcode/QR, embedded artwork/images) and powers single-SVG and SVG ZIP export.
+- `src/types/label.ts` is the schema source of truth. Element `x`/`y`/`width`/`height` are template pixels, not percentages. Shapes (`ShapeElementConfig`) are first-class elements alongside text, barcode, QR, and image.
+- Stacking order is the `elements` array order: later elements render on top. `ElementInspector` provides a drag-reorder Layers panel, plus visibility/lock toggles and front/back controls wired through `App`'s `handleMoveElement`.
+- `src/utils/renderer.ts` is the single raster rendering path for designer previews, batch previews, PDF, PNG ZIP, and print. `src/utils/svgExport.ts` is the vector equivalent (SVG text/barcode/QR/shapes, embedded artwork/images) and powers single-SVG and SVG ZIP export.
 - Exporters: `pdfExport.ts` (single-label pages or sheet grids), `zipExport.ts` (PNG ZIPs plus a `labels.csv` manifest), `svgExport.ts` (vector SVG ZIP). Barcodes use JsBarcode in `barcode.ts`; Excel parsing (first worksheet only, values stringified/trimmed) is in `excel.ts`.
 - `src/utils/row.ts` provides `normalizeColumnKey`, `getRowValue`, and `getFirstRowValue`; use these for case/space/underscore-tolerant column lookup.
 - `src/utils/template.ts` creates blank-label SVG data URLs. `TemplateUploader` supports upload, drag/drop, blank-label presets, and file validation.
@@ -26,7 +27,7 @@ AC LABEL MAKER: a client-only React SPA for uploading label artwork, mapping spr
 
 ## Gotchas
 
-- QR codes use the real `qrcode` package via `generateQrDataUrl`; do not reintroduce a fake hash-based QR.
+- QR codes use the real `qrcode` package. `generateQrPath` powers the inline vector QR preview and SVG export; `generateQrDataUrl` wraps the same vector SVG for canvas rendering. Do not reintroduce a fake hash-based QR or a bitmap-only preview.
 - Token interpolation (`interpolateTokens`) supports `{{Col}}` and `{Col}`, ignores case/spaces/underscores, and has special tokens `index`/`row`, `counter`, and `date`/`today`.
 - Barcode and image column lookups use `getRowValue`, so they are tolerant of case/spacing differences.
 - Empty barcode/QR values are skipped or shown as placeholders; there is no hard-coded sample barcode fallback.

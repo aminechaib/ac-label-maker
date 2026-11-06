@@ -6,11 +6,142 @@ import {
   BarcodeElementConfig,
   QRElementConfig,
   ImageElementConfig,
+  ShapeElementConfig,
 } from '../types/label';
 import { interpolateTokens, getFontFamilyStack } from '../utils/renderer';
-import { generateBarcodeDataUrl, generateQrDataUrl } from '../utils/barcode';
+import { generateBarcodeDataUrl, generateQrPath } from '../utils/barcode';
 import { getRowValue } from '../utils/row';
 import { ZoomIn, ZoomOut, Grid, Lock, Image as ImageIcon } from 'lucide-react';
+
+function getStarPoints(width: number, height: number, inset: number): string {
+  const cx = width / 2;
+  const cy = height / 2;
+  const outerX = Math.max(1, (width - inset * 2) / 2);
+  const outerY = Math.max(1, (height - inset * 2) / 2);
+  const innerX = outerX * 0.45;
+  const innerY = outerY * 0.45;
+  const points: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const rx = i % 2 === 0 ? outerX : innerX;
+    const ry = i % 2 === 0 ? outerY : innerY;
+    points.push(`${cx + Math.cos(angle) * rx},${cy + Math.sin(angle) * ry}`);
+  }
+  return points.join(' ');
+}
+
+const ShapePreview: React.FC<{ config: ShapeElementConfig }> = ({ config }) => {
+  const width = Math.max(1, config.width);
+  const height = Math.max(1, config.height);
+  const strokeWidth = Math.max(0, config.strokeWidth || 0);
+  const inset = strokeWidth / 2;
+  const innerWidth = Math.max(0, width - strokeWidth);
+  const innerHeight = Math.max(0, height - strokeWidth);
+  const radius = Math.max(
+    0,
+    Math.min(config.borderRadius ?? 0, innerWidth / 2, innerHeight / 2)
+  );
+  const shared = {
+    fill: config.fillColor,
+    stroke: config.strokeColor,
+    strokeWidth,
+    strokeLinejoin: 'round' as const,
+    strokeLinecap: 'round' as const,
+  };
+
+  let shapeNode: React.ReactNode;
+  switch (config.shape) {
+    case 'ellipse':
+      shapeNode = (
+        <ellipse
+          cx={width / 2}
+          cy={height / 2}
+          rx={innerWidth / 2}
+          ry={innerHeight / 2}
+          {...shared}
+        />
+      );
+      break;
+    case 'line':
+      shapeNode = (
+        <line
+          x1={inset}
+          y1={height / 2}
+          x2={width - inset}
+          y2={height / 2}
+          stroke={config.strokeColor}
+          strokeWidth={Math.max(1, strokeWidth || 2)}
+          strokeLinecap="round"
+        />
+      );
+      break;
+    case 'triangle':
+      shapeNode = (
+        <polygon
+          points={`${width / 2},${inset} ${width - inset},${height - inset} ${inset},${height - inset}`}
+          {...shared}
+        />
+      );
+      break;
+    case 'diamond':
+      shapeNode = (
+        <polygon
+          points={`${width / 2},${inset} ${width - inset},${height / 2} ${width / 2},${height - inset} ${inset},${height / 2}`}
+          {...shared}
+        />
+      );
+      break;
+    case 'star':
+      shapeNode = (
+        <polygon points={getStarPoints(width, height, inset)} {...shared} />
+      );
+      break;
+    case 'arrow': {
+      const x = inset;
+      const y = inset;
+      const w = innerWidth;
+      const h = innerHeight;
+      shapeNode = (
+        <polygon
+          points={`${x},${y + h * 0.32} ${x + w * 0.58},${y + h * 0.32} ${x + w * 0.58},${y} ${
+            x + w
+          },${y + h / 2} ${x + w * 0.58},${y + h} ${x + w * 0.58},${y + h * 0.68} ${x},${
+            y + h * 0.68
+          }`}
+          {...shared}
+        />
+      );
+      break;
+    }
+    case 'rounded-rectangle':
+    case 'rectangle':
+    default:
+      shapeNode = (
+        <rect
+          x={inset}
+          y={inset}
+          width={innerWidth}
+          height={innerHeight}
+          rx={radius}
+          ry={radius}
+          {...shared}
+        />
+      );
+      break;
+  }
+
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      style={{ opacity: config.opacity ?? 1, pointerEvents: 'none' }}
+    >
+      {shapeNode}
+    </svg>
+  );
+};
 
 type ResizeDirection = 'se' | 'sw' | 'ne' | 'nw' | 'e' | 's';
 
@@ -419,8 +550,18 @@ export const DesignerCanvas: React.FC<DesignerCanvasProps> = ({
                       color: (el as TextElementConfig).color || '#000000',
                       textAlign: (el as TextElementConfig).textAlign || 'left',
                       textTransform: (el as TextElementConfig).textTransform || 'none',
+                      fontStyle: (el as TextElementConfig).fontStyle || 'normal',
+                      textDecoration: (el as TextElementConfig).textDecoration || 'none',
                       backgroundColor: (el as TextElementConfig).backgroundColor || 'transparent',
                       lineHeight: (el as TextElementConfig).lineHeight || 1.25,
+                      letterSpacing: `${((el as TextElementConfig).letterSpacing ?? 0) * zoom}px`,
+                      WebkitTextStroke:
+                        (el as TextElementConfig).strokeWidth &&
+                        (el as TextElementConfig).strokeWidth! > 0
+                          ? `${(el as TextElementConfig).strokeWidth! * zoom}px ${
+                              (el as TextElementConfig).strokeColor || (el as TextElementConfig).color
+                            }`
+                          : undefined,
                     }}
                     className="w-full h-full p-1 whitespace-pre-wrap break-words overflow-hidden"
                   >
@@ -446,6 +587,7 @@ export const DesignerCanvas: React.FC<DesignerCanvasProps> = ({
                         <img
                           src={src}
                           alt={imgEl.name}
+                          draggable={false}
                           style={{
                             objectFit: imgEl.objectFit || 'contain',
                             opacity: imgEl.opacity !== undefined ? imgEl.opacity : 1,
@@ -492,7 +634,8 @@ export const DesignerCanvas: React.FC<DesignerCanvasProps> = ({
                         <img
                           src={dataUrl}
                           alt="Barcode"
-                          className="w-full h-full object-contain pointer-events-none"
+                          draggable={false}
+                          className="w-full h-full object-contain pointer-events-none select-none"
                         />
                       ) : (
                         <div className="text-[10px] text-red-500 font-mono">Barcode Invalid</div>
@@ -514,16 +657,32 @@ export const DesignerCanvas: React.FC<DesignerCanvasProps> = ({
                           </div>
                         );
                       }
-                      const dataUrl = generateQrDataUrl(
-                        val,
-                        Math.max(32, Math.min(el.width, el.height) * zoom),
-                        qrEl.color || '#0f172a',
-                        qrEl.backgroundColor || '#ffffff'
-                      );
-                      return dataUrl ? (
-                        <img src={dataUrl} alt="QR Code" className="w-full h-full object-contain" />
+                      const qr = generateQrPath(val, qrEl.errorCorrectionLevel || 'M');
+                      return qr ? (
+                        <svg
+                          viewBox={`0 0 ${qr.totalModules} ${qr.totalModules}`}
+                          preserveAspectRatio="xMidYMid meet"
+                          shapeRendering="crispEdges"
+                          className="w-full h-full pointer-events-none select-none"
+                          role="img"
+                          aria-label="QR Code"
+                        >
+                          <rect
+                            width={qr.totalModules}
+                            height={qr.totalModules}
+                            fill={qrEl.backgroundColor || '#ffffff'}
+                          />
+                          <path d={qr.path} fill={qrEl.color || '#0f172a'} />
+                        </svg>
                       ) : null;
                     })()}
+                  </div>
+                )}
+
+                {/* Content Rendering for Shapes */}
+                {el.type === 'shape' && (
+                  <div className="w-full h-full pointer-events-none">
+                    <ShapePreview config={el as ShapeElementConfig} />
                   </div>
                 )}
 

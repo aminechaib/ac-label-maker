@@ -15,6 +15,8 @@ import {
   BarcodeElementConfig,
   ImageElementConfig,
   QRElementConfig,
+  ShapeElementConfig,
+  ShapeType,
 } from './types/label';
 import { renderLabelToCanvas } from './utils/renderer';
 import { Download, Eye, LayoutTemplate, Database, Printer } from 'lucide-react';
@@ -85,6 +87,19 @@ export default function App() {
     };
     setElements((prev) => [...prev, duplicated]);
     setSelectedElementId(duplicated.id);
+  };
+
+  const handleMoveElement = (id: string, targetIndex: number) => {
+    setElements((prev) => {
+      const fromIndex = prev.findIndex((el) => el.id === id);
+      if (fromIndex === -1) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      const clampedTarget = Math.max(0, Math.min(next.length, targetIndex));
+      next.splice(clampedTarget, 0, moved);
+      return next;
+    });
   };
 
   const handleAddElement = (
@@ -170,6 +185,42 @@ export default function App() {
       setElements((prev) => [...prev, newText]);
       setSelectedElementId(newText.id);
     }
+  };
+
+  const handleAddShape = (shape: ShapeType) => {
+    if (!currentTemplate) return;
+
+    const names: Record<ShapeType, string> = {
+      rectangle: 'Rectangle',
+      'rounded-rectangle': 'Rounded Box',
+      ellipse: 'Ellipse',
+      line: 'Divider Line',
+      triangle: 'Triangle',
+      diamond: 'Diamond',
+      star: 'Star Badge',
+      arrow: 'Arrow',
+    };
+
+    const isLine = shape === 'line';
+    const baseSize = Math.max(80, Math.min(220, Math.round(currentTemplate.originalWidth * 0.22)));
+    const newShape: ShapeElementConfig = {
+      id: `el_shape_${Date.now()}`,
+      name: names[shape],
+      type: 'shape',
+      shape,
+      x: Math.round((currentTemplate.originalWidth - (isLine ? baseSize * 1.6 : baseSize)) / 2),
+      y: Math.round((currentTemplate.originalHeight - (isLine ? 12 : baseSize)) / 2),
+      width: Math.round(isLine ? baseSize * 1.6 : baseSize),
+      height: isLine ? 12 : baseSize,
+      fillColor: '#dbeafe',
+      strokeColor: '#1d4ed8',
+      strokeWidth: 2,
+      borderRadius: 12,
+      opacity: 1,
+    };
+    setElements((prev) => [...prev, newShape]);
+    setSelectedElementId(newShape.id);
+    setActiveTab('designer');
   };
 
   const handleAddImageAtPosition = (file: File, x: number, y: number) => {
@@ -345,7 +396,9 @@ export default function App() {
                   onUpdateElement={handleUpdateElement}
                   onDeleteElement={handleDeleteElement}
                   onDuplicateElement={handleDuplicateElement}
+                  onMoveElement={handleMoveElement}
                   onAddElement={handleAddElement}
+                  onAddShape={handleAddShape}
                   availableColumns={dataset?.headers ?? []}
                   activeRow={activeRow}
                 />

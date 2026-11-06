@@ -1,6 +1,16 @@
-export type ElementType = 'text' | 'barcode' | 'qr' | 'static-text' | 'counter' | 'image';
+export type ElementType = 'text' | 'barcode' | 'qr' | 'static-text' | 'counter' | 'image' | 'shape';
 
 export type BarcodeFormat = 'CODE128' | 'EAN13' | 'EAN8' | 'UPC' | 'CODE39' | 'ITF';
+
+export type ShapeType =
+  | 'rectangle'
+  | 'rounded-rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'arrow';
 
 export interface BaseElement {
   id: string;
@@ -24,8 +34,12 @@ export interface TextElementConfig extends BaseElement {
   backgroundColor?: string;
   textAlign: 'left' | 'center' | 'right';
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  fontStyle?: 'normal' | 'italic';
+  textDecoration?: 'none' | 'underline' | 'line-through';
   letterSpacing?: number;
   lineHeight?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
   prefix?: string;
   suffix?: string;
   counterStart?: number;
@@ -50,6 +64,7 @@ export interface QRElementConfig extends BaseElement {
   templateString: string; // can use {{column}} tokens
   color: string;
   backgroundColor: string;
+  errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
 }
 
 export interface ImageElementConfig extends BaseElement {
@@ -62,7 +77,22 @@ export interface ImageElementConfig extends BaseElement {
   borderRadius?: number;
 }
 
-export type CanvasElement = TextElementConfig | BarcodeElementConfig | QRElementConfig | ImageElementConfig;
+export interface ShapeElementConfig extends BaseElement {
+  type: 'shape';
+  shape: ShapeType;
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  borderRadius?: number;
+  opacity?: number;
+}
+
+export type CanvasElement =
+  | TextElementConfig
+  | BarcodeElementConfig
+  | QRElementConfig
+  | ImageElementConfig
+  | ShapeElementConfig;
 
 export interface LabelTemplate {
   id: string;

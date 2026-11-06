@@ -8,9 +8,14 @@ import {
   Info,
   AlertCircle,
   CheckCircle2,
+  Package,
+  Truck,
+  Warehouse,
+  ScanLine,
+  Sparkles,
 } from 'lucide-react';
 import { LabelTemplate } from '../types/label';
-import { createBlankTemplate } from '../utils/template';
+import { createBlankTemplate, createStarterTemplate, StarterDesignId } from '../utils/template';
 
 interface TemplateUploaderProps {
   currentTemplate: LabelTemplate | null;
@@ -21,6 +26,38 @@ interface TemplateUploaderProps {
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = /\.(svg|png|jpe?g|webp)$/i;
+
+const STARTER_DESIGNS: {
+  id: StarterDesignId;
+  label: string;
+  description: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  {
+    id: 'product',
+    label: 'Product Label',
+    description: 'Part name, OE number, QR and barcode',
+    Icon: Package,
+  },
+  {
+    id: 'shipping',
+    label: 'Shipping Label',
+    description: 'Large reference block with scannable codes',
+    Icon: Truck,
+  },
+  {
+    id: 'inventory',
+    label: 'Bin / Inventory Tag',
+    description: 'Bold part number with full-width barcode',
+    Icon: Warehouse,
+  },
+  {
+    id: 'qr-badge',
+    label: 'QR Badge',
+    description: 'Compact scan card for parts and assets',
+    Icon: ScanLine,
+  },
+];
 
 export const TemplateUploader: React.FC<TemplateUploaderProps> = ({
   currentTemplate,
@@ -73,6 +110,21 @@ export const TemplateUploader: React.FC<TemplateUploaderProps> = ({
     }
     setError(null);
     onSelectTemplate(createBlankTemplate(width, height));
+  };
+
+  const handleCreateStarter = (design: StarterDesignId) => {
+    const width = Number(blankWidth);
+    const height = Number(blankHeight);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 100 || height < 100) {
+      setError('Starter designs must be at least 100 × 100 px.');
+      return;
+    }
+    if (width > 5000 || height > 5000) {
+      setError('Starter designs are limited to 5000 px per side.');
+      return;
+    }
+    setError(null);
+    onSelectTemplate(createStarterTemplate(width, height, design));
   };
 
   return (
@@ -252,6 +304,35 @@ export const TemplateUploader: React.FC<TemplateUploaderProps> = ({
               <FileCode className="w-3.5 h-3.5" />
               <span>Create Blank Label</span>
             </button>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Starter designs</h3>
+                <p className="text-[11px] text-slate-500">
+                  Pre-built layouts using the size above. Fully editable afterwards.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {STARTER_DESIGNS.map(({ id, label, description, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleCreateStarter(id)}
+                  className="flex flex-col items-start gap-1.5 p-3 text-left bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Icon className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs font-bold text-slate-800">{label}</span>
+                  <span className="text-[10px] leading-snug text-slate-500">{description}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2">

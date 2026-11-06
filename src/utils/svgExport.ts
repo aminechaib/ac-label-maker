@@ -1,15 +1,15 @@
 import JSZip from 'jszip';
 import JsBarcode from 'jsbarcode';
-import QRCode from 'qrcode';
 import {
   BarcodeElementConfig,
   CanvasElement,
   ImageElementConfig,
   LabelTemplate,
   QRElementConfig,
+  ShapeElementConfig,
   TextElementConfig,
 } from '../types/label';
-import { generateBarcodeDataUrl, normalizeBarcodeValue } from './barcode';
+import { generateBarcodeDataUrl, generateQrPath, normalizeBarcodeValue } from './barcode';
 import { getFontFamilyStack, interpolateTokens } from './renderer';
 import { getFirstRowValue, getRowValue } from './row';
 import { ProgressCallback } from './pdfExport';
@@ -73,6 +73,17 @@ function renderTextElement(element: TextElementConfig, row: Record<string, strin
     element.letterSpacing !== undefined && element.letterSpacing !== 0
       ? ` letter-spacing="${toCssLength(element.letterSpacing)}"`
       : '';
+  const fontStyle = element.fontStyle === 'italic' ? ' font-style="italic"' : '';
+  const textDecoration =
+    element.textDecoration && element.textDecoration !== 'none'
+      ? ` text-decoration="${element.textDecoration}"`
+      : '';
+  const outline =
+    (element.strokeWidth ?? 0) > 0
+      ? ` stroke="${escapeXml(element.strokeColor || element.color || '#000000')}" stroke-width="${toCssLength(
+          element.strokeWidth || 0
+        )}" paint-order="stroke fill"`
+      : '';
 
   const lines = text.split('\n');
   const tspans = lines
@@ -87,7 +98,7 @@ function renderTextElement(element: TextElementConfig, row: Record<string, strin
       fontSize
     )}" font-weight="${escapeXml(element.fontWeight || '400')}" fill="${escapeXml(
       element.color || '#000000'
-    )}" text-anchor="${textAnchor}" dominant-baseline="text-before-edge"${letterSpacing}>${tspans}</text>`
+    )}" text-anchor="${textAnchor}" dominant-baseline="text-before-edge"${letterSpacing}${fontStyle}${textDecoration}${outline}>${tspans}</text>`
   );
 
   return parts.join('');
@@ -160,29 +171,18 @@ function renderQrElement(
   const text = interpolateTokens(element.templateString, row, rowIndex);
   if (!text.trim()) return '';
 
-  try {
-    const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
-    const moduleCount = qr.modules.size;
-    const quietZone = 4;
-    const total = moduleCount + quietZone * 2;
+  const qr = generateQrPath(text, element.errorCorrectionLevel || 'M');
+  if (!qr) return '';
 
-    let path = '';
-    for (let rowIndexQr = 0; rowIndexQr < moduleCount; rowIndexQr++) {
-      for (let col = 0; col < moduleCount; col++) {
-        if (qr.modules.get(rowIndexQr, col)) {
-          path += `M${col + quietZone} ${rowIndexQr + quietZone}h1v1h-1z`;
-        }
-      }
-    }
-
-    return `<svg x="${toCssLength(element.x)}" y="${toCssLength(element.y)}" width="${toCssLength(
-      element.width
-    )}" height="${toCssLength(element.height)}" viewBox="0 0 ${total} ${total}" preserveAspectRatio="none"><rect width="${total}" height="${total}" fill="${escapeXml(
-      element.backgroundColor || '#ffffff'
-    )}"/><path d="${path}" fill="${escapeXml(element.color || '#0f172a')}" shape-rendering="crispEdges"/></svg>`;
-  } catch {
-    return '';
-  }
+  return `<svg x="${toCssLength(element.x)}" y="${toCssLength(element.y)}" width="${toCssLength(
+    element.width
+  )}" height="${toCssLength(element.height)}" viewBox="0 0 ${qr.totalModules} ${
+    qr.totalModules
+  }" preserveAspectRatio="none"><rect width="${qr.totalModules}" height="${
+    qr.totalModules
+  }" fill="${escapeXml(element.backgroundColor || '#ffffff')}"/><path d="${
+    qr.path
+  }" fill="${escapeXml(element.color || '#0f172a')}" shape-rendering="crispEdges"/></svg>`;
 }
 
 function renderImageElement(
@@ -217,6 +217,100 @@ function renderImageElement(
   )}" width="${toCssLength(element.width)}" height="${toCssLength(
     element.height
   )}" preserveAspectRatio="${preserveAspectRatio}"${opacity}${clipAttr}/>`;
+}
+
+function getStarPointsSvg(width: number, height: number, inset: number): string {
+  const cx = width / 2;
+  const cy = height / 2;
+  const outerX = Math.max(1, (width - inset * 2) / 2);
+  const outerY = Math.max(1, (height - inset * 2) / 2);
+  const innerX = outerX * 0.45;
+  const innerY = outerY * 0.45;
+  const points: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    const rx = i % 2 === 0 ? outerX : innerX;
+    const ry = i % 2 === 0 ? outerY : innerY;
+    points.push(`${toCssLength(cx + Math.cos(angle) * rx)},${toCssLength(cy + Math.sin(angle) * ry)}`);
+  }
+  return points.join(' ');
+}
+
+function renderShapeElement(element: ShapeElementConfig): string {
+  const width = Math.max(1, element.width);
+  const height = Math.max(1, element.height);
+  const strokeWidth = Math.max(0, element.strokeWidth ?? 0);
+  const inset = strokeWidth / 2;
+  const innerWidth = Math.max(0, width - strokeWidth);
+  const innerHeight = Math.max(0, height - strokeWidth);
+  const radius = Math.max(0, Math.min(element.borderRadius ?? 0, innerWidth / 2, innerHeight / 2));
+  const shared = `fill="${escapeXml(element.fillColor || 'transparent')}" stroke="${escapeXml(
+    element.strokeColor || '#000000'
+  )}" stroke-width="${toCssLength(strokeWidth)}" stroke-linejoin="round" stroke-linecap="round"`;
+
+  let shapeNode = '';
+  switch (element.shape) {
+    case 'ellipse':
+      shapeNode = `<ellipse cx="${toCssLength(width / 2)}" cy="${toCssLength(
+        height / 2
+      )}" rx="${toCssLength(innerWidth / 2)}" ry="${toCssLength(innerHeight / 2)}" ${shared}/>`;
+      break;
+    case 'line':
+      shapeNode = `<line x1="${toCssLength(inset)}" y1="${toCssLength(height / 2)}" x2="${toCssLength(
+        width - inset
+      )}" y2="${toCssLength(height / 2)}" stroke="${escapeXml(
+        element.strokeColor || '#000000'
+      )}" stroke-width="${toCssLength(
+        Math.max(strokeWidth, 1)
+      )}" stroke-linecap="round"/>`;
+      break;
+    case 'triangle':
+      shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
+        width - inset
+      )},${toCssLength(height - inset)} ${toCssLength(inset)},${toCssLength(
+        height - inset
+      )}" ${shared}/>`;
+      break;
+    case 'diamond':
+      shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
+        width - inset
+      )},${toCssLength(height / 2)} ${toCssLength(width / 2)},${toCssLength(
+        height - inset
+      )} ${toCssLength(inset)},${toCssLength(height / 2)}" ${shared}/>`;
+      break;
+    case 'star':
+      shapeNode = `<polygon points="${getStarPointsSvg(width, height, inset)}" ${shared}/>`;
+      break;
+    case 'arrow': {
+      const x = inset;
+      const y = inset;
+      const w = innerWidth;
+      const h = innerHeight;
+      shapeNode = `<polygon points="${toCssLength(x)},${toCssLength(y + h * 0.32)} ${toCssLength(
+        x + w * 0.58
+      )},${toCssLength(y + h * 0.32)} ${toCssLength(x + w * 0.58)},${toCssLength(y)} ${toCssLength(
+        x + w
+      )},${toCssLength(y + h / 2)} ${toCssLength(x + w * 0.58)},${toCssLength(
+        y + h
+      )} ${toCssLength(x + w * 0.58)},${toCssLength(y + h * 0.68)} ${toCssLength(
+        x
+      )},${toCssLength(y + h * 0.68)}" ${shared}/>`;
+      break;
+    }
+    case 'rounded-rectangle':
+    case 'rectangle':
+    default:
+      shapeNode = `<rect x="${toCssLength(inset)}" y="${toCssLength(inset)}" width="${toCssLength(
+        innerWidth
+      )}" height="${toCssLength(innerHeight)}" rx="${toCssLength(radius)}" ry="${toCssLength(
+        radius
+      )}" ${shared}/>`;
+      break;
+  }
+
+  return `<g transform="translate(${toCssLength(element.x)}, ${toCssLength(
+    element.y
+  )})" opacity="${element.opacity ?? 1}">${shapeNode}</g>`;
 }
 
 /**
@@ -265,6 +359,8 @@ export async function renderLabelToSvg(
       parts.push(renderQrElement(element as QRElementConfig, row, rowIndex));
     } else if (element.type === 'image') {
       parts.push(renderImageElement(element as ImageElementConfig, row, rowIndex));
+    } else if (element.type === 'shape') {
+      parts.push(renderShapeElement(element as ShapeElementConfig));
     }
   }
 

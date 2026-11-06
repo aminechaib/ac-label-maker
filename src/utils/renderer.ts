@@ -5,6 +5,7 @@ import {
   BarcodeElementConfig,
   QRElementConfig,
   ImageElementConfig,
+  ShapeElementConfig,
 } from '../types/label';
 import { generateBarcodeDataUrl, generateQrDataUrl } from './barcode';
 import { getRowValue } from './row';
@@ -103,6 +104,124 @@ export interface CanvasRenderOptions {
   transparentBackground?: boolean;
 }
 
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  if (r === 0) {
+    ctx.rect(x, y, width, height);
+    return;
+  }
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.arcTo(x + width, y, x + width, y + r, r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+  ctx.lineTo(x + r, y + height);
+  ctx.arcTo(x, y + height, x, y + height - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawShapeElement(
+  ctx: CanvasRenderingContext2D,
+  element: ShapeElementConfig,
+  elX: number,
+  elY: number,
+  elW: number,
+  elH: number,
+  scale: number
+): void {
+  const strokeWidth = Math.max(0, element.strokeWidth ?? 0) * scale;
+  const inset = strokeWidth / 2;
+  const x = elX + inset;
+  const y = elY + inset;
+  const width = Math.max(0, elW - strokeWidth);
+  const height = Math.max(0, elH - strokeWidth);
+  const radius = Math.max(0, (element.borderRadius ?? 0) * scale);
+
+  ctx.save();
+  ctx.globalAlpha = element.opacity ?? 1;
+  ctx.fillStyle = element.fillColor || 'transparent';
+  ctx.strokeStyle = element.strokeColor || '#000000';
+  ctx.lineWidth = Math.max(strokeWidth, element.shape === 'line' ? scale : 0);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
+  switch (element.shape) {
+    case 'ellipse':
+      ctx.ellipse(centerX, centerY, width / 2, height / 2, 0, 0, Math.PI * 2);
+      break;
+    case 'line':
+      ctx.moveTo(x, centerY);
+      ctx.lineTo(x + width, centerY);
+      break;
+    case 'triangle':
+      ctx.moveTo(centerX, y);
+      ctx.lineTo(x + width, y + height);
+      ctx.lineTo(x, y + height);
+      ctx.closePath();
+      break;
+    case 'diamond':
+      ctx.moveTo(centerX, y);
+      ctx.lineTo(x + width, centerY);
+      ctx.lineTo(centerX, y + height);
+      ctx.lineTo(x, centerY);
+      ctx.closePath();
+      break;
+    case 'star': {
+      const outerX = width / 2;
+      const outerY = height / 2;
+      const innerX = outerX * 0.45;
+      const innerY = outerY * 0.45;
+      for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI / 5) * i - Math.PI / 2;
+        const rx = i % 2 === 0 ? outerX : innerX;
+        const ry = i % 2 === 0 ? outerY : innerY;
+        const px = centerX + Math.cos(angle) * rx;
+        const py = centerY + Math.sin(angle) * ry;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      break;
+    }
+    case 'arrow':
+      ctx.moveTo(x, y + height * 0.32);
+      ctx.lineTo(x + width * 0.58, y + height * 0.32);
+      ctx.lineTo(x + width * 0.58, y);
+      ctx.lineTo(x + width, centerY);
+      ctx.lineTo(x + width * 0.58, y + height);
+      ctx.lineTo(x + width * 0.58, y + height * 0.68);
+      ctx.lineTo(x, y + height * 0.68);
+      ctx.closePath();
+      break;
+    case 'rounded-rectangle':
+    case 'rectangle':
+    default:
+      roundedRectPath(ctx, x, y, width, height, radius);
+      break;
+  }
+
+  if (element.shape !== 'line' && element.fillColor && element.fillColor !== 'transparent') {
+    ctx.fill();
+  }
+  if (ctx.lineWidth > 0) {
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /**
  * Renders a single label into an offscreen HTMLCanvasElement
  */
@@ -184,15 +303,22 @@ export async function renderLabelToCanvas(
       }
 
       const fontStack = getFontFamilyStack(textConfig.fontFamily);
-      ctx.font = `${textConfig.fontWeight || '400'} ${Math.round(textConfig.fontSize * scale)}px ${fontStack}`;
+      const fontStyle = textConfig.fontStyle === 'italic' ? 'italic ' : '';
+      const fontSizePx = Math.round(textConfig.fontSize * scale);
+      ctx.font = `${fontStyle}${textConfig.fontWeight || '400'} ${fontSizePx}px ${fontStack}`;
       ctx.fillStyle = textConfig.color || '#000000';
       ctx.textBaseline = 'top';
+      (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${
+        (textConfig.letterSpacing ?? 0) * scale
+      }px`;
 
       let textToDraw = interpolated;
       if (textConfig.textTransform === 'uppercase') {
         textToDraw = textToDraw.toUpperCase();
       } else if (textConfig.textTransform === 'lowercase') {
         textToDraw = textToDraw.toLowerCase();
+      } else if (textConfig.textTransform === 'capitalize') {
+        textToDraw = textToDraw.replace(/\b\w/g, (char) => char.toUpperCase());
       }
 
       // Handle alignment
@@ -211,9 +337,40 @@ export async function renderLabelToCanvas(
       // Handle multiline text with \n
       const lines = textToDraw.split('\n');
       const lineHeightPx = Math.round((textConfig.lineHeight || 1.25) * textConfig.fontSize * scale);
+      const outlineWidth = (textConfig.strokeWidth ?? 0) * scale;
 
       lines.forEach((line, lineIndex) => {
-        ctx.fillText(line, drawX, elY + lineIndex * lineHeightPx);
+        const lineY = elY + lineIndex * lineHeightPx;
+
+        if (outlineWidth > 0) {
+          ctx.strokeStyle = textConfig.strokeColor || textConfig.color || '#000000';
+          ctx.lineWidth = outlineWidth;
+          ctx.lineJoin = 'round';
+          ctx.strokeText(line, drawX, lineY);
+        }
+        ctx.fillText(line, drawX, lineY);
+
+        if (textConfig.textDecoration && textConfig.textDecoration !== 'none') {
+          const textWidth = ctx.measureText(line).width;
+          let startX = drawX;
+          if (textConfig.textAlign === 'center') startX = drawX - textWidth / 2;
+          else if (textConfig.textAlign === 'right') startX = drawX - textWidth;
+
+          const decorationY =
+            lineY +
+            (textConfig.textDecoration === 'underline'
+              ? fontSizePx * 1.02
+              : fontSizePx * 0.58);
+
+          ctx.save();
+          ctx.strokeStyle = textConfig.color || '#000000';
+          ctx.lineWidth = Math.max(1, fontSizePx * 0.06);
+          ctx.beginPath();
+          ctx.moveTo(startX, decorationY);
+          ctx.lineTo(startX + textWidth, decorationY);
+          ctx.stroke();
+          ctx.restore();
+        }
       });
 
       ctx.restore();
@@ -279,6 +436,8 @@ export async function renderLabelToCanvas(
           console.warn('Image draw failed', e);
         }
       }
+    } else if (element.type === 'shape') {
+      drawShapeElement(ctx, element as ShapeElementConfig, elX, elY, elW, elH, scale);
     } else if (element.type === 'barcode') {
       const barcodeConfig = element as BarcodeElementConfig;
       const rawBarcodeVal = getRowValue(row, barcodeConfig.columnSource);
@@ -312,7 +471,8 @@ export async function renderLabelToCanvas(
         text,
         Math.max(32, Math.min(elW, elH)),
         qrConfig.color || '#0f172a',
-        qrConfig.backgroundColor || '#ffffff'
+        qrConfig.backgroundColor || '#ffffff',
+        qrConfig.errorCorrectionLevel || 'M'
       );
       if (dataUrl) {
         try {

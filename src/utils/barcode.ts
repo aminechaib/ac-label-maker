@@ -136,46 +136,77 @@ export function generateBarcodeDataUrl(
   }
 }
 
+export interface QrVector {
+  /** Number of modules including the quiet zone. */
+  totalModules: number;
+  /** SVG path data drawing one unit square per dark module. */
+  path: string;
+}
+
 /**
- * Renders a real, scannable QR code to a PNG data URL.
+ * Builds the QR code as vector data. Used by the designer and SVG export so the
+ * code stays sharp at any size and never becomes a dragged bitmap.
  */
-export function generateQrDataUrl(
+export function generateQrPath(
   text: string,
-  size = 100,
-  darkColor = '#0f172a',
-  lightColor = '#ffffff'
-): string {
+  errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H' = 'M'
+): QrVector | null {
   try {
-    const qr = QRCode.create(text || ' ', { errorCorrectionLevel: 'M' });
+    const qr = QRCode.create(text || ' ', { errorCorrectionLevel });
     const modules = qr.modules;
     const moduleCount = modules.size;
     const quietZone = 4;
     const totalModules = moduleCount + quietZone * 2;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.fillStyle = lightColor;
-    ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = darkColor;
-
-    const cellSize = size / totalModules;
+    let path = '';
     for (let row = 0; row < moduleCount; row++) {
       for (let col = 0; col < moduleCount; col++) {
         if (!modules.get(row, col)) continue;
-        const x = Math.floor((col + quietZone) * cellSize);
-        const y = Math.floor((row + quietZone) * cellSize);
-        const nextX = Math.floor((col + quietZone + 1) * cellSize);
-        const nextY = Math.floor((row + quietZone + 1) * cellSize);
-        ctx.fillRect(x, y, Math.max(1, nextX - x), Math.max(1, nextY - y));
+        path += `M${col + quietZone} ${row + quietZone}h1v1h-1z`;
       }
     }
 
-    return canvas.toDataURL('image/png');
+    return { totalModules, path };
   } catch {
-    return '';
+    return null;
   }
+}
+
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+export function generateQrSvg(
+  text: string,
+  size = 100,
+  darkColor = '#0f172a',
+  lightColor = '#ffffff',
+  errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H' = 'M'
+): string {
+  const qr = generateQrPath(text, errorCorrectionLevel);
+  if (!qr) return '';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${qr.totalModules} ${qr.totalModules}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><rect width="${qr.totalModules}" height="${qr.totalModules}" fill="${escapeXmlAttribute(
+    lightColor
+  )}"/><path d="${qr.path}" fill="${escapeXmlAttribute(darkColor)}"/></svg>`;
+}
+
+/**
+ * Renders a real, scannable QR code as a vector SVG data URL.
+ * Canvas rendering may still rasterize this when producing PNG/PDF output.
+ */
+export function generateQrDataUrl(
+  text: string,
+  size = 100,
+  darkColor = '#0f172a',
+  lightColor = '#ffffff',
+  errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H' = 'M'
+): string {
+  const svg = generateQrSvg(text, size, darkColor, lightColor, errorCorrectionLevel);
+  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : '';
 }
