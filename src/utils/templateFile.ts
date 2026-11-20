@@ -121,6 +121,7 @@ export function parseTemplateFile(raw: string): LabelTemplate {
   };
 }
 
+export { svgToElements } from './template';
 export function downloadTemplateFile(template: LabelTemplate): string {
   const fileName = `${slugifyFileName(template.name)}.label-template.json`;
   const blob = new Blob([serializeTemplate(template)], {

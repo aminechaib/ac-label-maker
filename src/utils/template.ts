@@ -8,8 +8,43 @@ import {
   TextElementConfig,
 } from '../types/label';
 
+function parseSvgPaths(svgString: string): { d: string; width: number; height: number }[] {
+  const doc = new DOMParser().parseFromString(svgString, 'image/svg+xml');
+  if (!doc.querySelector('svg')) return [];
+  const paths = Array.from(doc.querySelectorAll('path'));
+  return paths.map((p) => ({
+    d: p.getAttribute('d') || '',
+    width: parseFloat(p.getAttribute('width') || '0') || 0,
+    height: parseFloat(p.getAttribute('height') || '0') || 0,
+  }));
+}
+
 export function svgToDataUrl(svgString: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+}
+
+function svgPathToShapeConfig(
+  id: string,
+  name: string,
+  d: string,
+  width: number,
+  height: number
+): ShapeElementConfig {
+  return {
+    id,
+    name,
+    type: 'shape',
+    shape: 'rectangle',
+    x: 0,
+    y: 0,
+    width,
+    height,
+    fillColor: 'transparent',
+    strokeColor: '#0f172a',
+    strokeWidth: 1,
+    borderRadius: 0,
+    opacity: 1,
+  };
 }
 
 export type StarterDesignId = 'product' | 'shipping' | 'inventory' | 'qr-badge';
@@ -261,6 +296,20 @@ export function createStarterTemplate(
   };
 
   return { ...base, name: designNames[design], elements };
+}
+
+export function svgToElements(svgString: string): CanvasElement[] {
+  const paths = parseSvgPaths(svgString);
+  return paths.map((path, index) => {
+    const element = svgPathToShapeConfig(
+      `svg_path_${Date.now()}_${index}`,
+      `SVG Path ${index + 1}`,
+      path.d,
+      Math.max(1, path.width),
+      Math.max(1, path.height)
+    );
+    return { ...element, visible: false };
+  });
 }
 
 export function createBlankTemplate(width: number, height: number, name = 'Untitled Label'): LabelTemplate {

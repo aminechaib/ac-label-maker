@@ -349,8 +349,6 @@ export async function renderLabelToSvg(
   }
 
   for (const element of elements) {
-    if (element.visible === false) continue;
-
     if (element.type === 'text' || element.type === 'static-text' || element.type === 'counter') {
       parts.push(renderTextElement(element as TextElementConfig, row, rowIndex));
     } else if (element.type === 'barcode') {

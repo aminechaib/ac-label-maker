@@ -19,7 +19,7 @@ import {
   ShapeType,
 } from './types/label';
 import { renderLabelToCanvas } from './utils/renderer';
-import { downloadTemplateFile, parseTemplateFile } from './utils/templateFile';
+import { downloadTemplateFile, parseTemplateFile, svgToElements } from './utils/templateFile';
 import {
   Download,
   Eye,
@@ -89,10 +89,12 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const width = img.naturalWidth || 800;
-        const height = img.naturalHeight || 500;
+      const isSvg = file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml';
+      if (isSvg) {
+        const svgString = dataUrl.split(',')[1];
+        const pathElements = svgToElements(svgString);
+        const width = 800;
+        const height = 500;
         const newTemplate: LabelTemplate = {
           id: `custom_${Date.now()}`,
           name: file.name.replace(/\.[^/.]+$/, ''),
@@ -100,14 +102,31 @@ export default function App() {
           originalWidth: width,
           originalHeight: height,
           aspectRatio: width / height,
-          elements,
+          elements: pathElements,
         };
         setCurrentTemplate(newTemplate);
-        if (elements.length === 0) {
-          setSelectedElementId(null);
-        }
-      };
-      img.src = dataUrl;
+        setSelectedElementId(null);
+      } else {
+        const img = new Image();
+        img.onload = () => {
+          const width = img.naturalWidth || 800;
+          const height = img.naturalHeight || 500;
+          const newTemplate: LabelTemplate = {
+            id: `custom_${Date.now()}`,
+            name: file.name.replace(/\.[^/.]+$/, ''),
+            backgroundUrl: dataUrl,
+            originalWidth: width,
+            originalHeight: height,
+            aspectRatio: width / height,
+            elements: [],
+          };
+          setCurrentTemplate(newTemplate);
+          if (elements.length === 0) {
+            setSelectedElementId(null);
+          }
+        };
+        img.src = dataUrl;
+      }
     };
     reader.readAsDataURL(file);
   };
