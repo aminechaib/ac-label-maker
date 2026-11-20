@@ -236,7 +236,7 @@ function getStarPointsSvg(width: number, height: number, inset: number): string 
   return points.join(' ');
 }
 
-function renderShapeElement(element: ShapeElementConfig): string {
+function renderShapeElement(element: ShapeElementConfig & { pathData?: string }): string {
   const width = Math.max(1, element.width);
   const height = Math.max(1, element.height);
   const strokeWidth = Math.max(0, element.strokeWidth ?? 0);
@@ -249,63 +249,68 @@ function renderShapeElement(element: ShapeElementConfig): string {
   )}" stroke-width="${toCssLength(strokeWidth)}" stroke-linejoin="round" stroke-linecap="round"`;
 
   let shapeNode = '';
-  switch (element.shape) {
-    case 'ellipse':
-      shapeNode = `<ellipse cx="${toCssLength(width / 2)}" cy="${toCssLength(
-        height / 2
-      )}" rx="${toCssLength(innerWidth / 2)}" ry="${toCssLength(innerHeight / 2)}" ${shared}/>`;
-      break;
-    case 'line':
-      shapeNode = `<line x1="${toCssLength(inset)}" y1="${toCssLength(height / 2)}" x2="${toCssLength(
-        width - inset
-      )}" y2="${toCssLength(height / 2)}" stroke="${escapeXml(
-        element.strokeColor || '#000000'
-      )}" stroke-width="${toCssLength(
-        Math.max(strokeWidth, 1)
-      )}" stroke-linecap="round"/>`;
-      break;
-    case 'triangle':
-      shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
-        width - inset
-      )},${toCssLength(height - inset)} ${toCssLength(inset)},${toCssLength(
-        height - inset
-      )}" ${shared}/>`;
-      break;
-    case 'diamond':
-      shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
-        width - inset
-      )},${toCssLength(height / 2)} ${toCssLength(width / 2)},${toCssLength(
-        height - inset
-      )} ${toCssLength(inset)},${toCssLength(height / 2)}" ${shared}/>`;
-      break;
-    case 'star':
-      shapeNode = `<polygon points="${getStarPointsSvg(width, height, inset)}" ${shared}/>`;
-      break;
-    case 'arrow': {
-      const x = inset;
-      const y = inset;
-      const w = innerWidth;
-      const h = innerHeight;
-      shapeNode = `<polygon points="${toCssLength(x)},${toCssLength(y + h * 0.32)} ${toCssLength(
-        x + w * 0.58
-      )},${toCssLength(y + h * 0.32)} ${toCssLength(x + w * 0.58)},${toCssLength(y)} ${toCssLength(
-        x + w
-      )},${toCssLength(y + h / 2)} ${toCssLength(x + w * 0.58)},${toCssLength(
-        y + h
-      )} ${toCssLength(x + w * 0.58)},${toCssLength(y + h * 0.68)} ${toCssLength(
-        x
-      )},${toCssLength(y + h * 0.68)}" ${shared}/>`;
-      break;
+
+  if (element.pathData) {
+    shapeNode = `<path d="${escapeXml(element.pathData)}" ${shared}/>`;
+  } else {
+    switch (element.shape) {
+      case 'ellipse':
+        shapeNode = `<ellipse cx="${toCssLength(width / 2)}" cy="${toCssLength(
+          height / 2
+        )}" rx="${toCssLength(innerWidth / 2)}" ry="${toCssLength(innerHeight / 2)}" ${shared}/>`;
+        break;
+      case 'line':
+        shapeNode = `<line x1="${toCssLength(inset)}" y1="${toCssLength(height / 2)}" x2="${toCssLength(
+          width - inset
+        )}" y2="${toCssLength(height / 2)}" stroke="${escapeXml(
+          element.strokeColor || '#000000'
+        )}" stroke-width="${toCssLength(
+          Math.max(strokeWidth, 1)
+        )}" stroke-linecap="round"/>`;
+        break;
+      case 'triangle':
+        shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
+          width - inset
+        )},${toCssLength(height - inset)} ${toCssLength(inset)},${toCssLength(
+          height - inset
+        )}" ${shared}/>`;
+        break;
+      case 'diamond':
+        shapeNode = `<polygon points="${toCssLength(width / 2)},${toCssLength(inset)} ${toCssLength(
+          width - inset
+        )},${toCssLength(height / 2)} ${toCssLength(width / 2)},${toCssLength(
+          height - inset
+        )} ${toCssLength(inset)},${toCssLength(height / 2)}" ${shared}/>`;
+        break;
+      case 'star':
+        shapeNode = `<polygon points="${getStarPointsSvg(width, height, inset)}" ${shared}/>`;
+        break;
+      case 'arrow': {
+        const x = inset;
+        const y = inset;
+        const w = innerWidth;
+        const h = innerHeight;
+        shapeNode = `<polygon points="${toCssLength(x)},${toCssLength(y + h * 0.32)} ${toCssLength(
+          x + w * 0.58
+        )},${toCssLength(y + h * 0.32)} ${toCssLength(x + w * 0.58)},${toCssLength(y)} ${toCssLength(
+          x + w
+        )},${toCssLength(y + h / 2)} ${toCssLength(x + w * 0.58)},${toCssLength(
+          y + h
+        )} ${toCssLength(x + w * 0.58)},${toCssLength(y + h * 0.68)} ${toCssLength(
+          x
+        )},${toCssLength(y + h * 0.68)}" ${shared}/>`;
+        break;
+      }
+      case 'rounded-rectangle':
+      case 'rectangle':
+      default:
+        shapeNode = `<rect x="${toCssLength(inset)}" y="${toCssLength(inset)}" width="${toCssLength(
+          innerWidth
+        )}" height="${toCssLength(innerHeight)}" rx="${toCssLength(radius)}" ry="${toCssLength(
+          radius
+        )}" ${shared}/>`;
+        break;
     }
-    case 'rounded-rectangle':
-    case 'rectangle':
-    default:
-      shapeNode = `<rect x="${toCssLength(inset)}" y="${toCssLength(inset)}" width="${toCssLength(
-        innerWidth
-      )}" height="${toCssLength(innerHeight)}" rx="${toCssLength(radius)}" ry="${toCssLength(
-        radius
-      )}" ${shared}/>`;
-      break;
   }
 
   return `<g transform="translate(${toCssLength(element.x)}, ${toCssLength(

@@ -29,7 +29,7 @@ function svgPathToShapeConfig(
   d: string,
   width: number,
   height: number
-): ShapeElementConfig {
+): ShapeElementConfig & { pathData?: string } {
   return {
     id,
     name,
@@ -44,6 +44,7 @@ function svgPathToShapeConfig(
     strokeWidth: 1,
     borderRadius: 0,
     opacity: 1,
+    pathData: d,
   };
 }
 
